@@ -1,0 +1,15 @@
+{% extends "shop/checkout/base_pay_ship.html" %}
+{% load i18n reward_tags satchmo_currency %}
+{# Reward Points pay_ship version #}
+
+{% block payment_table %}
+	{% get_points as points %}
+	{% get_point_modifier as point_modifier %}
+    <tr><td><h4>{% trans "Payment Information" %}</h4></td></tr>
+    {% if not PAYMENT_LIVE %}
+    <tr><td colspan="2" valign="top"><b>TEST MODE</b></td></tr>
+    {% endif %}
+    <p>{% trans 'Points available' %}: {{ points }} (1 point = {{ point_modifier|currency }})</p>
+    <tr><td><label for="id_points">{% trans "Points to Use" %}</label></td> <td>{{ form.points }}</td></tr>
+    <tr><td></td><td>{% if form.points.errors %}*** {{ form.points.errors|join:", " }}{% endif %}</td></tr>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "shop/base.html" %}
+{% load i18n %}
+
+{% block extra-head %}
+
+{% endblock %}
+
+{% block navbar %}
+   <li class="first"><a href="{{ shop_base }}/">{% trans "Home" %}</a></li>
+   <li><a href="{% url satchmo_account_info %}">{% trans "Account" %}</a></li>
+   <li>{% trans "Reward Points" %}</li>
+{% endblock %}
+
+{% block content %}
+<div id="ordertracking">
+    <h3>{% trans "Reward Points" %}</h3>
+    {% if reward %}
+    <p>{% trans "Total Reward Points" %}: {{ reward.points }}</p>
+    <table>
+    	<thead>
+    		<tr>
+    		<th>{% trans "Transaction" %}</th>
+    		<th>{% trans "Status" %}</th>
+    		<th>{% trans "Points" %}</th>
+    		</tr>
+    	</thead>
+    	<tbody>
+    {% for item in reward.reward_items.all %}
+    	<tr>
+	    	<td>{{ item.transaction_description }}</td>
+	    	<td>{{ item.get_status_display }}</td>
+	    	<td>{{ item.points }}</td>
+    	</tr>
+    {% endfor %}
+    	</tbody>
+    </table>
+    {% else %}
+    {% trans "Not on the rewards system. Please contact an Administrator." %}
+    {% endif %}
+</div>
+{% endblock %}
