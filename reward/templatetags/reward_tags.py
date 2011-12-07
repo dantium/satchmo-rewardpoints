@@ -46,3 +46,7 @@ def get_point_modifier(parser, token):
         raise template.TemplateSyntaxError("%r tag requires 2 arguments" % token.contents.split()[0])
     return GetPointModifier(var_name)
 
+@register.filter
+def calc_reward_value(value):
+    return value * config_value('PAYMENT_REWARD', 'POINTS_VALUE')
+

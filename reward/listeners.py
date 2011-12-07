@@ -37,10 +37,11 @@ def add_points_on_order(order=None, **kwargs):
     log.debug("Caught order, attempting to add customer points pending.")
     rewards_enabled = config_value('PAYMENT_REWARD', 'REWARD_ENABLE')
     if order and rewards_enabled:
-        if not RewardItem.objects.filter(order=order).filter(status=POINTS_PENDING).exists():
-            #reward = Reward.objects.get_or_create(contact=order.contact)
-            points = math.ceil(order.sub_total * config_value('PAYMENT_REWARD', 'POINTS_EARNT') /100)
-            RewardItem.objects.update_or_create(order.contact,order,points,POINTS_PENDING, _('Points from Order'))
+        if order.contact.user:
+            if not RewardItem.objects.filter(order=order).filter(status=POINTS_PENDING).exists():
+                #reward = Reward.objects.get_or_create(contact=order.contact)
+                points = math.floor(order.sub_total * config_value('PAYMENT_REWARD', 'POINTS_EARNT') /100)
+                RewardItem.objects.update_or_create(order.contact,order,points,POINTS_PENDING, _('Points from Order'))
 
 def remove_points(order,oldstatus=None):
     log.debug("Caught order cancelled, attempting to remove customer points.")

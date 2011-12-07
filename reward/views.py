@@ -28,6 +28,25 @@ payment_module = config_get_group('PAYMENT_REWARD')
 """ Override controller to change remaining balance URL """
 class RewardConfirmController(confirm.ConfirmController):
     
+    def process(self):
+        """Process a prepared payment"""
+        result = self.processor.process(self.request)
+        self.processorResults = result.success
+        if result.payment:
+            reason_code = result.payment.reason_code
+        else:
+            reason_code = ""
+        self.processorReasonCode = reason_code
+        self.processorMessage = result.message
+
+        log.info("""Processing %s transaction with %s
+        Order %i
+        Results=%s
+        Response=%s
+        Reason=%s""", self.paymentModule.LABEL.value, self.paymentModule.KEY.value, 
+                      self.order.id, self.processorResults, self.processorReasonCode, self.processorMessage)
+        return self.processorResults
+    
     def _onSuccess(self, controller):
         """Handles a success in payment.  If the order is paid-off, sends success, else return page to pay remaining."""
         if controller.order.paid_in_full:
@@ -73,21 +92,10 @@ def confirm_info(request, template="shop/checkout/reward/confirm.html"):
     contact = Contact.objects.from_request(request)
     reward, created = Reward.objects.get_or_create(contact=contact)
     
-    if reward.points < 1:
-        messages.error(request, _('You have no reward points available.'))
-        return HttpResponseRedirect(checkout_url)
-    
-    if reward.points < config_value('PAYMENT_REWARD', 'MIN_NEEDED'):
-        messages.error(request, _('You have %s points, a minimum of %s points is needed before you can redeem them.' % (reward.points, config_value('PAYMENT_REWARD', 'MIN_NEEDED'))))
-        return HttpResponseRedirect(checkout_url)
     point_modifier = config_value('PAYMENT_REWARD', 'POINTS_VALUE')
     total_point_value = point_modifier * reward.points
     
     needs_total = config_value('PAYMENT_REWARD', 'REWARDS_NEED_TOTAL')
-    if needs_total:
-        if total_point_value < order.balance:
-            messages.error(request, _('You have %s points (worth %s), not enough to cover the balance of %s.' % (reward.points, moneyfmt(total_point_value), moneyfmt(order.balance))))
-            return HttpResponseRedirect(checkout_url)
         
     if total_point_value > order.balance:
         point_value_used = order.balance
@@ -95,11 +103,10 @@ def confirm_info(request, template="shop/checkout/reward/confirm.html"):
     else:
         points_used = reward.points
         point_value_used = total_point_value
-        
-
+    
     controller = RewardConfirmController(request, payment_module)
     controller.templates['CONFIRM'] = template
-    controller.extra_context={'points_used' : points_used, 'point_value_used' : point_value_used, 'points_balance' : reward.points, 'needs_total':needs_total}
+    controller.extra_context={'points_used' : points_used, 'points_balance' : reward.points, 'needs_total':needs_total}
     controller.confirm()
     
     return controller.response

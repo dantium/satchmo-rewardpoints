@@ -15,11 +15,21 @@ class PaymentProcessor(BasePaymentProcessor):
 
     def __init__(self, settings):
         super(PaymentProcessor, self).__init__('rewardpoints', settings)
+        
+    def process(self, request, testing=False):
+        """This will process the payment."""
+        if self.can_authorize() and not self.settings.CAPTURE.value:
+            self.log_extra('Authorizing payment on order #%i', self.order.id)
+            return self.authorize_payment(testing=testing)
+        else:
+            self.log_extra('Capturing payment on order #%i', self.order.id)
+            return self.capture_payment(request, testing=testing)
 
-    def capture_payment(self, testing=False, order=None, amount=None):
+    def capture_payment(self, request,testing=False, order=None, amount=None):
         """
         Process the transaction and return a ProcessorResponse
         """
+        
         if not order:
             order = self.order
 
@@ -28,6 +38,8 @@ class PaymentProcessor(BasePaymentProcessor):
 
         payment = None
 
+        points = int(request.POST.get('points',None))
+        
         if self.order.paid_in_full:
             success = True
             reason_code = "0"
@@ -36,27 +48,42 @@ class PaymentProcessor(BasePaymentProcessor):
 
         else:
             #contact = Contact.objects.from_request(request)
-            reward, created = Reward.objects.get_or_create(contact=order.contact)
-            
-            point_modifier = config_value('PAYMENT_REWARD', 'POINTS_VALUE')
-            total_point_value = point_modifier * reward.points
-            
-            if total_point_value > order.balance:
-                point_value_used = order.balance
-                points_used = point_value_used / point_modifier
-            else:
-                points_used = reward.points
-                point_value_used = total_point_value
+            if points:
+                reward, created = Reward.objects.get_or_create(contact=order.contact)
                 
-            orderpayment = self.record_payment(order=order, amount=point_value_used)
-            reward_item = RewardItem.objects.add_order_payment(reward,order,orderpayment,points_used,point_value_used)
+                if points > reward.points:
+                    success = False
+                    reason_code = "0"
+                    response_text = _("You Do not have that many reward points.")
+                    return ProcessorResult(self.key, success, response_text, payment=payment)
+                    
+                
+                point_modifier = config_value('PAYMENT_REWARD', 'POINTS_VALUE')
+                point_value = point_modifier * points
 
-            reason_code = "0"
-            response_text = _("Success")
-            success = True
+                if point_value > order.balance:
+                    success = False
+                    reason_code = "0"
+                    response_text = _("You are trying to use too many points for this order.")
+                    return ProcessorResult(self.key, success, response_text, payment=payment)
+                else:
+                    points_used = points
+                    point_value_used = point_value
+                    
+                    orderpayment = self.record_payment(order=order, amount=point_value_used)
+                    reward_item = RewardItem.objects.add_order_payment(reward,order,orderpayment,points_used,point_value_used)
+        
+                    reason_code = "0"
+                    response_text = _("Success")
+                    success = True
+    
+                if not self.order.paid_in_full:
+                    url = reverse('satchmo_balance_remaining')
+                    response_text = _("%s balance remains after using points") % moneyfmt(self.order.balance)
+            else:
+                success = False
+                reason_code = "0"
+                response_text = _("Please enter the ammount of reward points you want to redeem")
+                
 
-            if not self.order.paid_in_full:
-                url = reverse('satchmo_balance_remaining')
-                response_text = _("%s balance remains after using points") % moneyfmt(self.order.balance)
-
-            return ProcessorResult(self.key, success, response_text, payment=payment)
+        return ProcessorResult(self.key, success, response_text, payment=payment)
